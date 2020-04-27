@@ -555,7 +555,7 @@ DynamicElementTextItem *Element::parseDynamicText(const QDomElement &dom_element
 		//and the uuid (because the uuid, is the uuid of the descritpion and not the uuid of instantiated dynamic text field)
 	
 	QDomElement dom(dom_element.cloneNode(true).toElement());
-	dom.setTagName(DynamicElementTextItem::xmlTaggName());
+	dom.setTagName(DynamicElementTextItem::xmlTagName());
 	deti->fromXml(dom);
 	deti->m_uuid = QUuid::createUuid();
 	this->addDynamicTextItem(deti);
@@ -741,7 +741,7 @@ bool Element::fromXml(QDomElement &e, QHash<int, Terminal *> &table_id_adr, bool
 		//************************//
 		//***Dynamic texts item***//
 		//************************//
-    for (const QDomElement& qde : QET::findInDomElement(e, "dynamic_texts", DynamicElementTextItem::xmlTaggName()))
+	for (const QDomElement& qde : QET::findInDomElement(e, "dynamic_texts", DynamicElementTextItem::xmlTagName()))
     {
         DynamicElementTextItem *deti = new DynamicElementTextItem(this);
         addDynamicTextItem(deti);
@@ -1387,7 +1387,28 @@ void Element::initLink(QETProject *prj)
 	foreach (Element *elmt, ep.fromUuids(tmp_uuids_link)) {
 		elmt->linkToElement(this);
 	}
-	tmp_uuids_link.clear();
+    tmp_uuids_link.clear();
+}
+
+QString Element::linkTypeToString() const
+{
+    switch (m_link_type)
+    {
+        case Simple:
+            return "Simple";
+        case NextReport :
+            return "NextReport";
+        case PreviousReport:
+            return "PreviousReport";
+        case Master:
+            return "Master";
+        case Slave:
+            return "Slave";
+        case Terminale:
+            return "Terminale";
+        default:
+            return "Unknown";
+    }
 }
 
 /**
@@ -1398,9 +1419,13 @@ void Element::initLink(QETProject *prj)
  */
 void Element::setElementInformations(DiagramContext dc)
 {
-	if (m_element_informations == dc) return;
+    if (m_element_informations == dc) {
+        return;
+    }
+
 	DiagramContext old_info = m_element_informations;
 	m_element_informations = dc;
+	m_element_informations.addValue("label", actualLabel()); //Update the label if there is a formula
 	emit elementInfoChange(old_info, m_element_informations);
 }
 
@@ -1459,7 +1484,7 @@ void Element::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
  * @param e QGraphicsSceneHoverEvent
 */
 void Element::hoverEnterEvent(QGraphicsSceneHoverEvent *e) {
-	Q_UNUSED(e);
+    Q_UNUSED(e)
 
 	foreach (Element *elmt, linkedElements())
 		elmt -> setHighlighted(true);
@@ -1476,7 +1501,7 @@ void Element::hoverEnterEvent(QGraphicsSceneHoverEvent *e) {
  * @param e QGraphicsSceneHoverEvent
 */
 void Element::hoverLeaveEvent(QGraphicsSceneHoverEvent *e) {
-	Q_UNUSED(e);
+    Q_UNUSED(e)
 
 	foreach (Element *elmt, linkedElements())
 		elmt -> setHighlighted(false);
@@ -1515,8 +1540,7 @@ void Element::setUpFormula(bool code_letter)
 		if(!m_freeze_label && !formula.isEmpty())
 		{
 			DiagramContext dc = m_element_informations;
-			QString label = autonum::AssignVariables::formulaToLabel(formula, m_autoNum_seq, diagram(), this);
-			m_element_informations.addValue("label", label);
+            m_element_informations.addValue("label", actualLabel());
 			emit elementInfoChange(dc, m_element_informations);
 		}
 	}
@@ -1555,7 +1579,22 @@ void Element::freezeNewAddedElement() {
 	if (this->diagram()->freezeNewElements() || this->diagram()->project()->isFreezeNewElements()) {
 		freezeLabel(true);
 	}
-	else return;
+    else return;
+}
+
+/**
+ * @brief Element::actualLabel
+ * Always return the current label to be displayed.
+ * This function is usefull when label is based on formula, because label can change at any time.
+ * @return
+ */
+QString Element::actualLabel()
+{
+    if (m_element_informations.value("formula").toString().isEmpty()) {
+        return m_element_informations.value("label").toString();
+    } else {
+        return autonum::AssignVariables::formulaToLabel(m_element_informations.value("formula").toString(), m_autoNum_seq, diagram(), this);
+    }
 }
 
 /**

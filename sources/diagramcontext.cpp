@@ -36,6 +36,14 @@ void DiagramContext::add(DiagramContext other)
 }
 
 /**
+ * @brief DiagramContext::remove
+ * @param key
+ */
+void DiagramContext::remove(const QString &key) {
+	m_content.remove(key);
+}
+
+/**
 	@return a list containing all the keys in the context object.
 */
 QList<QString> DiagramContext::keys(DiagramContext::KeyOrder order) const
@@ -151,6 +159,21 @@ void DiagramContext::fromXml(const QDomElement &e, const QString &tag_name) {
 		if (!property.hasAttribute("name")) continue;
 		addValue(property.attribute("name"), QVariant(property.text()));
 		m_content_show.insert(property.attribute("name"), property.attribute("show", "1").toInt());
+	}
+}
+
+/**
+ * @brief DiagramContext::fromXml
+ * Read this context properties from the @dom_element, looking for tags named @tag_name
+ * @param dom_element : dom element to parse
+ * @param tag_name : tag name to find, by default "property"
+ */
+void DiagramContext::fromXml(const pugi::xml_node &dom_element, const QString &tag_name)
+{
+	for(auto node = dom_element.child(tag_name.toStdString().c_str()) ; node ; node = node.next_sibling(tag_name.toStdString().c_str()))
+	{
+		addValue(node.attribute("name").as_string(), QVariant(node.text().as_string()));
+		m_content_show.insert(node.attribute("name").as_string(), node.attribute("show").empty()? 1 : node.attribute("show").as_int());
 	}
 }
 

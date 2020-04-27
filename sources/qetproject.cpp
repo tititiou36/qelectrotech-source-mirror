@@ -25,7 +25,6 @@
 #include "titleblocktemplate.h"
 #include "ui/dialogwaiting.h"
 #include "numerotationcontext.h"
-#include "reportproperties.h"
 #include "integrationmovetemplateshandler.h"
 #include "xmlelementcollection.h"
 #include "importelementdialog.h"
@@ -46,8 +45,11 @@ static int BACKUP_INTERVAL = 120000; //interval in ms of backup = 2min
  */
 QETProject::QETProject(QObject *parent) :
 	QObject              (parent),
-	m_titleblocks_collection(this)
+	m_titleblocks_collection(this),
+	m_data_base(this, this)
 {
+	setDefaultTitleBlockProperties(TitleBlockProperties::defaultProperties());
+
 	m_elements_collection = new XmlElementCollection(this);
 	init();
 }
@@ -60,7 +62,8 @@ QETProject::QETProject(QObject *parent) :
  */
 QETProject::QETProject(const QString &path, QObject *parent) :
 	QObject              (parent),
-	m_titleblocks_collection(this)
+	m_titleblocks_collection(this),
+	m_data_base(this, this)
 {
 	QFile file(path);
 	m_state = openFile(&file);
@@ -78,7 +81,8 @@ QETProject::QETProject(const QString &path, QObject *parent) :
  */
 QETProject::QETProject(KAutoSaveFile *backup, QObject *parent) :
 	QObject              (parent),
-	m_titleblocks_collection(this)
+	m_titleblocks_collection(this),
+	m_data_base(this, this)
 {
 	m_state = openFile(backup);
 		//Failed to open from the backup, try to open the crashed
@@ -110,6 +114,22 @@ QETProject::QETProject(KAutoSaveFile *backup, QObject *parent) :
  */
 QETProject::~QETProject() {
 	qDeleteAll(m_diagrams_list);
+}
+
+/**
+ * @brief QETProject::dataBase
+ * @return The data base of this project
+ */
+projectDataBase *QETProject::dataBase() {
+	return &m_data_base;
+}
+
+/**
+ * @brief QETProject::uuid
+ * @return the uuid of this project
+ */
+QUuid QETProject::uuid() const {
+	return m_uuid;
 }
 
 /**
@@ -438,12 +458,10 @@ void QETProject::setDefaultTitleBlockProperties(const TitleBlockProperties &titl
 			case QET::Embedded :
 				//Titleblock is already embedded to project
 				return;
-			default:
-				return;
 		}
 
-		QScopedPointer<IntegrationMoveTitleBlockTemplatesHandler> m(new IntegrationMoveTitleBlockTemplatesHandler);
-		integrateTitleBlockTemplate(collection -> location(titleblock.template_name), m.data());
+		IntegrationMoveTitleBlockTemplatesHandler m_;
+		integrateTitleBlockTemplate(collection -> location(titleblock.template_name), &m_);
 	}
 	emit defaultTitleBlockPropertiesChanged();
 }
@@ -1373,6 +1391,9 @@ void QETProject::readDiagramsXml(QDomDocument &xml_project)
 								 "Mise en place des références croisées"
 								 "</p>"));
 	}
+
+	m_data_base.updateDB(); //All diagrams and items are created we need to update the database
+
 	for(Diagram *d : diagrams())
 	{
 		if(dlgWaiting)

@@ -86,7 +86,7 @@ DynamicElementTextItem::DynamicElementTextItem()
  */
 QDomElement DynamicElementTextItem::toXml(QDomDocument &dom_doc) const
 {
-	QDomElement root_element = dom_doc.createElement(xmlTaggName());
+	QDomElement root_element = dom_doc.createElement(xmlTagName());
 	
 	root_element.setAttribute("x", QString::number(pos().x()));
 	root_element.setAttribute("y", QString::number(pos().y()));
@@ -153,7 +153,7 @@ QDomElement DynamicElementTextItem::toXml(QDomDocument &dom_doc) const
  */
 void DynamicElementTextItem::fromXml(const QDomElement &dom_elmt)
 {
-	if (dom_elmt.tagName() != xmlTaggName()) {
+	if (dom_elmt.tagName() != xmlTagName()) {
 		qDebug() << "DynamicElementTextItem::fromXml : Wrong tagg name";
 		return;
 	}
@@ -762,11 +762,13 @@ bool DynamicElementTextItem::sceneEventFilter(QGraphicsItem *watched, QEvent *ev
 void DynamicElementTextItem::elementInfoChanged()
 {
 	DiagramContext dc;
-	if(elementUseForInfo())
-		dc = elementUseForInfo()->elementInformations();
+	Element *element = elementUseForInfo();
+	if(element) {
+		dc = element->elementInformations();
+	}
 	
 	QString final_text;
-	Element *element = elementUseForInfo();
+
 
 	if (m_text_from == ElementInfo)
 	{
@@ -775,14 +777,14 @@ void DynamicElementTextItem::elementInfoChanged()
 		if(m_info_name == "label")
 		{
 			setupFormulaConnection();
-			
-			if (dc.value("formula").toString().isEmpty())
-				final_text = dc.value(m_info_name).toString();
-			else
-				final_text = autonum::AssignVariables::formulaToLabel(dc.value("formula").toString(), element->rSequenceStruct(), element->diagram(), element);
+
+			if (element) {
+				final_text = element->actualLabel();
+			}
 		}
-		else
+		else {
 			final_text = dc.value(m_info_name).toString();
+		}
 	}
 	else if (m_text_from == CompositeText)
 	{
@@ -1040,20 +1042,18 @@ void DynamicElementTextItem::updateLabel()
 		(m_text_from == CompositeText && m_composite_text.contains("%{label}")))
 	{
 		DiagramContext dc;
-		if(elementUseForInfo())
-			dc = elementUseForInfo()->elementInformations();
+        Element *element = elementUseForInfo();
+        if(element) {
+            dc = element->elementInformations();
+        }
 		
-		Element *element = elementUseForInfo();
-		
-		if(m_text_from == ElementInfo)
-		{
-			if(dc.value("formula").toString().isEmpty())
-				setPlainText(dc.value("label").toString());
-			else
-				setPlainText(autonum::AssignVariables::formulaToLabel(dc.value("formula").toString(), element->rSequenceStruct(), element->diagram(), element));
+
+        if(m_text_from == ElementInfo && element) {
+            setPlainText(element->actualLabel());
 		}
-		else if (m_text_from == CompositeText)
+        else if (m_text_from == CompositeText) {
 			setPlainText(autonum::AssignVariables::replaceVariable(m_composite_text, dc));
+        }
 	}
 }
 
@@ -1172,7 +1172,7 @@ QString DynamicElementTextItem::reportReplacedCompositeText() const
 		{
 			Element *elmt = m_other_report.data();
 			QString label = m_report_formula;
-			label = autonum::AssignVariables::formulaToLabel(label, elmt->rSequenceStruct(), elmt->diagram(), elmt);
+            label = elmt->actualLabel();
 			string.replace("%{label}", label);
 		}
 		if (m_watched_conductor)

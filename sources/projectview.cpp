@@ -56,11 +56,8 @@ ProjectView::ProjectView(QETProject *project, QWidget *parent) :
 	Supprime les DiagramView embarquees
 */
 ProjectView::~ProjectView() {
-	// qDebug() << "Suppression du ProjectView" << ((void *)this);
-	foreach(int id, m_diagram_ids.keys()) {
-		DiagramView *diagram_view = m_diagram_ids.take(id);
-		delete diagram_view;
-	}
+	for (auto dv_ : m_diagram_ids.values())
+		dv_->deleteLater();
 }
 
 /**
@@ -313,7 +310,7 @@ QString ProjectView::askUserForFilePath(bool assign) {
 	QString filepath = QFileDialog::getSaveFileName(
 		this,
 		tr("Enregistrer sous", "dialog title"),
-		m_project -> currentDir(),
+		m_project -> currentDir() + "/" + tr("sansnom") + ".qet",
 		tr("Projet QElectroTech (*.qet)", "filetypes allowed when saving a project file")
 	);
 
@@ -446,12 +443,8 @@ void ProjectView::removeDiagram(DiagramView *diagram_view)
 	delete diagram_view;
 
 	emit(diagramRemoved(diagram_view));
-	
-        //Make definitve the withdrawal
-	m_project -> write();
     updateAllTabsTitle();
     m_project -> setModified(true);
-
 }
 
 /**
@@ -824,7 +817,7 @@ void ProjectView::initWidgets() {
 
 	connect(m_tab, SIGNAL(currentChanged(int)), this, SLOT(tabChanged(int)));
 	connect(m_tab, SIGNAL(tabBarDoubleClicked(int)), this, SLOT(tabDoubleClicked(int)));
-	connect(m_tab->tabBar(), SIGNAL(tabMoved(int, int)), this, SLOT(tabMoved(int, int)));
+	connect(m_tab->tabBar(), SIGNAL(tabMoved(int, int)), this, SLOT(tabMoved(int, int)), Qt::QueuedConnection);
 
 	fallback_widget_ -> setVisible(false);
 	m_tab -> setVisible(false);

@@ -41,7 +41,6 @@ int main(int argc, char **argv)
 #else
     qputenv("QT_DEVICE_PIXEL_RATIO", QByteArray("auto"));
 #endif
-	
 	SingleApplication app(argc, argv, true);
 #ifdef Q_OS_MACOS
 		//Handle the opening of QET when user double click on a .qet .elmt .tbt file

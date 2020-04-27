@@ -71,13 +71,18 @@ include(sources/PropertiesEditor/PropertiesEditor.pri)
 include(sources/QetGraphicsItemModeler/QetGraphicsItemModeler.pri)
 include(sources/QPropertyUndoCommand/QPropertyUndoCommand.pri)
 include(SingleApplication/singleapplication.pri)
+include(sources/QWidgetAnimation/QWidgetAnimation.pri)
+
 DEFINES += QAPPLICATION_CLASS=QApplication
 
 TEMPLATE = app
 DEPENDPATH += .
 INCLUDEPATH += sources \
                sources/titleblock \
-               sources/ui sources/qetgraphicsitem \
+               sources/ui \
+               sources/qetgraphicsitem \
+               sources/qetgraphicsitem/ViewItem \
+               sources/qetgraphicsitem/ViewItem/ui \
                sources/richtext \
                sources/factory \
                sources/properties \
@@ -85,7 +90,7 @@ INCLUDEPATH += sources \
                sources/editor \
                sources/editor/esevent \
                sources/editor/graphicspart \
-			   sources/editor/ui \
+               sources/editor/ui \
                sources/undocommand \
                sources/diagramevent \
                sources/ElementsCollection \
@@ -93,11 +98,14 @@ INCLUDEPATH += sources \
                sources/autoNum \
                sources/autoNum/ui \
                sources/ui/configpage \
-			   sources/SearchAndReplace \
-			   sources/SearchAndReplace/ui \
-			   sources/NameList \
-			   sources/NameList/ui \
-			   sources/utils
+               sources/SearchAndReplace \
+               sources/SearchAndReplace/ui \
+               sources/NameList \
+               sources/NameList/ui \
+               sources/utils \
+               sources/pugixml \
+               sources/dataBase \
+               sources/dataBase/ui
 
 
 # Fichiers sources
@@ -106,6 +114,8 @@ HEADERS += $$files(sources/*.h) $$files(sources/ui/*.h) \
            $$files(sources/titleblock/*.h) \
            $$files(sources/richtext/*.h) \
            $$files(sources/qetgraphicsitem/*.h) \
+           $$files(sources/qetgraphicsitem/ViewItem/*.h) \
+           $$files(sources/qetgraphicsitem/ViewItem/ui/*.h) \
            $$files(sources/factory/*.h) \
            $$files(sources/properties/*.h) \
            $$files(sources/editor/ui/*.h) \
@@ -120,10 +130,13 @@ HEADERS += $$files(sources/*.h) $$files(sources/ui/*.h) \
            $$files(sources/autoNum/ui/*.h) \
            $$files(sources/ui/configpage/*.h) \
            $$files(sources/SearchAndReplace/*.h) \
-		   $$files(sources/SearchAndReplace/ui/*.h) \
-		   $$files(sources/NameList/*.h) \
-		   $$files(sources/NameList/ui/*.h) \
-                   $$files(sources/utils/*.h)
+           $$files(sources/SearchAndReplace/ui/*.h) \
+           $$files(sources/NameList/*.h) \
+           $$files(sources/NameList/ui/*.h) \
+           $$files(sources/utils/*.h) \
+           $$files(sources/pugixml/*.hpp) \
+           $$files(sources/dataBase/*.h) \
+           $$files(sources/dataBase/ui/*.h)
 
 SOURCES += $$files(sources/*.cpp) \
            $$files(sources/editor/*.cpp) \
@@ -131,6 +144,8 @@ SOURCES += $$files(sources/*.cpp) \
            $$files(sources/richtext/*.cpp) \
            $$files(sources/ui/*.cpp) \
            $$files(sources/qetgraphicsitem/*.cpp) \
+           $$files(sources/qetgraphicsitem/ViewItem/*.cpp) \
+           $$files(sources/qetgraphicsitem/ViewItem/ui/*.cpp) \
            $$files(sources/factory/*.cpp) \
            $$files(sources/properties/*.cpp) \
            $$files(sources/editor/ui/*.cpp) \
@@ -144,11 +159,14 @@ SOURCES += $$files(sources/*.cpp) \
            $$files(sources/autoNum/*.cpp) \
            $$files(sources/autoNum/ui/*.cpp) \
            $$files(sources/ui/configpage/*.cpp) \
-		   $$files(sources/SearchAndReplace/*.cpp) \
-		   $$files(sources/SearchAndReplace/ui/*.cpp) \
-		   $$files(sources/NameList/*.cpp) \
-		   $$files(sources/NameList/ui/*.cpp) \
-                   $$files(sources/utils/*.cpp)
+           $$files(sources/SearchAndReplace/*.cpp) \
+           $$files(sources/SearchAndReplace/ui/*.cpp) \
+           $$files(sources/NameList/*.cpp) \
+           $$files(sources/NameList/ui/*.cpp) \
+           $$files(sources/utils/*.cpp) \
+           $$files(sources/pugixml/*.cpp) \
+           $$files(sources/dataBase/*.cpp) \
+           $$files(sources/dataBase/ui/*.cpp)
     
 # Liste des fichiers qui seront incorpores au binaire en tant que ressources Qt
 RESOURCES += qelectrotech.qrc
@@ -170,7 +188,9 @@ FORMS += $$files(sources/richtext/*.ui) \
          $$files(sources/autoNum/ui/*.ui) \
          $$files(sources/ui/configpage/*.ui) \
          $$files(sources/SearchAndReplace/ui/*.ui) \
-         $$files(sources/NameList/ui/*.ui)
+         $$files(sources/NameList/ui/*.ui) \
+         $$files(sources/qetgraphicsitem/ViewItem/ui/*.ui) \
+         $$files(sources/dataBase/ui/*.ui)
 
 UI_SOURCES_DIR = sources/ui/
 UI_HEADERS_DIR = sources/ui/

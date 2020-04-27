@@ -16,25 +16,12 @@
 	along with QElectroTech.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "qetdiagrameditor.h"
-#include "qetapp.h"
-#include "diagramcontent.h"
 #include "diagramview.h"
-#include "diagram.h"
-#include "qetgraphicsitem/element.h"
 #include "elementspanelwidget.h"
-#include "conductorpropertieswidget.h"
-#include "qetproject.h"
-#include "projectview.h"
 #include "recentfiles.h"
 #include "qeticons.h"
-#include "qetelementeditor.h"
 #include "qetmessagebox.h"
-#include "qetresult.h"
-#include "genericpanel.h"
-#include "nomenclature.h"
 #include "diagramfoliolist.h"
-#include "qetshapeitem.h"
-#include "reportproperties.h"
 #include "diagrampropertieseditordockwidget.h"
 #include "diagrameventaddshape.h"
 #include "diagrameventaddimage.h"
@@ -49,12 +36,12 @@
 #include "dialogwaiting.h"
 #include "addelementtextcommand.h"
 #include "conductornumexport.h"
+#include "qetgraphicstableitem.h"
+#include "bomexportdialog.h"
+#include "nomenclaturemodel.h"
+#include "QWidgetAnimation/qwidgetanimation.h"
 
-#include <QMessageBox>
-#include <QStandardPaths>
 #include <KAutoSaveFile>
-
-#include "elementscollectionmodel.h"
 
 
 /**
@@ -80,9 +67,17 @@ QETDiagramEditor::QETDiagramEditor(const QStringList &files, QWidget *parent) :
 	splitter_->setOrientation(Qt::Vertical);
 	splitter_->addWidget(&m_workspace);
 	splitter_->addWidget(&m_search_and_replace_widget);
-	m_search_and_replace_widget.setHidden(true);
-	m_search_and_replace_widget.setEditor(this);
 	setCentralWidget(splitter_);
+	m_search_and_replace_widget.setEditor(this);
+
+	QList<int> s;
+	s << m_workspace.maximumHeight() << m_search_and_replace_widget.minimumSizeHint().height();
+	splitter_->setSizes(s); //Force the size of the search and replace widget, force have a good animation the first time he is showed
+
+	auto anim = new QWidgetAnimation(&m_search_and_replace_widget, Qt::Vertical, QWidgetAnimation::lastSize, 250);
+	anim->setObjectName("search and replace animator");
+	m_search_and_replace_widget.setHidden(true);
+	anim->setLastShowSize(m_search_and_replace_widget.minimumSizeHint().height());
 	
 		//Set object name to be retrieved by the stylesheets
 	m_workspace.setBackground(QBrush(Qt::NoBrush));
@@ -392,14 +387,41 @@ void QETDiagramEditor::setUpActions()
 			current_project->addNewDiagramFolioList();
 		}
 	});
-	
 		//Export nomenclature to CSV
-	m_project_nomenclature = new QAction(QET::Icons::DocumentSpreadsheet, tr("Exporter une nomenclature"), this);
-	connect(m_project_nomenclature, &QAction::triggered, [this]() {
-		nomenclature nomencl(currentProjectView()->project(), this);
-		nomencl.saveToCSVFile();
+	m_csv_export = new QAction(QET::Icons::DocumentSpreadsheet, tr("Exporter au format CSV"), this);
+	connect(m_csv_export, &QAction::triggered, [this]() {
+        BOMExportDialog bom(currentProjectView()->project(), this);
+        bom.exec();
 	});
 	
+		//Add a nomenclature item
+	m_add_nomenclature = new QAction(QET::Icons::TableOfContent, tr("Ajouter un tableau lambda (Fonctionnalité en cours de devellopement)"),this);
+	connect(m_add_nomenclature, &QAction::triggered, [this]()
+	{
+		if(this->currentDiagramView())
+		{
+			auto table = new QetGraphicsTableItem();
+
+			/*******ONLY FOR TEST DURING DEVEL*********/
+			auto model = new NomenclatureModel(this->currentProject(), this->currentProject());
+			QString query("SELECT ei.plant, ei.location, ei.label, ei.comment, ei.description, ei.manufacturer, e.pos, di.title, di.folio"
+						  " FROM element_info ei, element e, diagram_info di"
+						  " WHERE ei.element_uuid = e.uuid AND e.diagram_uuid = di.diagram_uuid"
+						  " ORDER BY ei.plant, ei.location, ei.label");
+			model->query(query);
+			model->autoHeaders();
+			model->setData(model->index(0,0), Qt::AlignLeft, Qt::TextAlignmentRole);
+			model->setData(model->index(0,0), QETApp::diagramTextsFont(), Qt::FontRole);
+			model->setHeaderData(0, Qt::Horizontal, Qt::AlignHCenter, Qt::TextAlignmentRole);
+			model->setHeaderData(0, Qt::Horizontal, QETApp::diagramTextsFont(), Qt::FontRole);
+			table->setModel(model);
+			/******************************************/
+
+			this->currentDiagramView()->diagram()->addItem(table);
+			table->setPos(50,50);
+		}
+	});
+
 		//Lauch the plugin of terminal generator
 	m_project_terminalBloc = new QAction(QET::Icons::TerminalStrip, tr("Lancer le plugin de création de borniers"), this);
 	connect(m_project_terminalBloc, &QAction::triggered, this, &QETDiagramEditor::generateTerminalBlock);
@@ -414,6 +436,11 @@ void QETDiagramEditor::setUpActions()
             wne.toCsv();
         }
     });
+
+	m_export_project_db = new QAction(QET::Icons::DocumentSpreadsheet, tr("Exporter la base de donnée interne du projet"), this);
+	connect(m_export_project_db, &QAction::triggered, [this]() {
+		projectDataBase::exportDb(this->currentProject()->dataBase(), this);
+	});
 	
 		//MDI view style
 	m_tabbed_view_mode = new QAction(tr("en utilisant des onglets"), this);
@@ -636,8 +663,13 @@ void QETDiagramEditor::setUpActions()
 	
 	m_find = new QAction(tr("Chercher/remplacer"), this);
 	m_find->setShortcut(QKeySequence::Find);
-	connect(m_find, &QAction::triggered, [this]() {
-		this->m_search_and_replace_widget.setHidden(!m_search_and_replace_widget.isHidden());
+	connect(m_find, &QAction::triggered, [this]()
+	{
+		if (auto animator = m_search_and_replace_widget.findChild<QWidgetAnimation *>("search and replace animator")) {
+			animator->setHidden(!m_search_and_replace_widget.isHidden());
+		} else {
+			this->m_search_and_replace_widget.setHidden(!m_search_and_replace_widget.isHidden());
+		}
 	});
 }
 
@@ -755,9 +787,12 @@ void QETDiagramEditor::setUpMenu() {
 	menu_project -> addAction(m_clean_project);
 	menu_project -> addSeparator();
 	menu_project -> addAction(m_project_folio_list);
-	menu_project -> addAction(m_project_nomenclature);
+	menu_project -> addAction(m_add_nomenclature);
+	menu_project -> addAction(m_csv_export);
     menu_project -> addAction(m_project_export_conductor_num);
 	menu_project -> addAction(m_project_terminalBloc);
+	menu_project -> addSeparator();
+	menu_project -> addAction(m_export_project_db);
 
 	main_tool_bar         -> toggleViewAction() -> setStatusTip(tr("Affiche ou non la barre d'outils principale"));
 	view_tool_bar         -> toggleViewAction() -> setStatusTip(tr("Affiche ou non la barre d'outils Affichage"));
@@ -879,24 +914,17 @@ void QETDiagramEditor::saveAs() {
 
 /**
  * @brief QETDiagramEditor::newProject
- * Create an empty project
+ * Create a new project with an empty diagram
  * @return
  */
-bool QETDiagramEditor::newProject() {
-	// create new project without diagram
-	QETProject *new_project = new QETProject(this);
-	
-	// Set default properties for new diagram
-	new_project -> setDefaultBorderProperties	  (BorderProperties::    defaultProperties());
-	new_project -> setDefaultConductorProperties  (ConductorProperties:: defaultProperties());
-	new_project -> setDefaultTitleBlockProperties (TitleBlockProperties::defaultProperties());
-	new_project -> setDefaultReportProperties	  (ReportProperties::    defaultProperties());
-	new_project -> setDefaultXRefProperties		  (XRefProperties::      defaultProperties());
+bool QETDiagramEditor::newProject()
+{
+	auto new_project = new QETProject(this);
 	
 	// add new diagram
 	new_project -> addNewDiagram();
 	
-	return(addProject(new_project));
+	return addProject(new_project);
 }
 
 /**
@@ -1438,8 +1466,9 @@ void QETDiagramEditor::slot_updateActions()
 	m_project_add_diagram  -> setEnabled(editable_project);
 	m_remove_diagram_from_project  -> setEnabled(editable_project);
 	m_clean_project        -> setEnabled(editable_project);
-	m_project_folio_list  -> setEnabled(opened_project);
-	m_project_nomenclature -> setEnabled(editable_project);
+	m_project_folio_list  -> setEnabled(editable_project);
+	m_add_nomenclature->setEnabled(editable_project);
+	m_csv_export -> setEnabled(editable_project);
 	m_export_diagram   -> setEnabled(opened_diagram);
 	m_print            -> setEnabled(opened_diagram);
 	m_edit_diagram_properties    -> setEnabled(opened_diagram);
@@ -1920,18 +1949,25 @@ void QETDiagramEditor::activateProject(ProjectView *project_view) {
 	activateWidget(project_view);
 }
 
-/**
-	Gere la fermeture d'une ProjectView
-	@param project_view ProjectView fermee
-*/
-void QETDiagramEditor::projectWasClosed(ProjectView *project_view) {
+/*** @brief QETDiagramEditor::projectWasClosed
+ * Manage the close of a project.
+ * @param project_view
+ */
+void QETDiagramEditor::projectWasClosed(ProjectView *project_view)
+{
 	QETProject *project = project_view -> project();
-	if (project) {
+	if (project) 
+	{
 		pa -> elementsPanel().projectWasClosed(project);
 		m_element_collection_widget->removeProject(project);
 		undo_group.removeStack(project -> undoStack());
 		QETApp::unregisterProject(project);
-	}
+		}
+		//When project is closed, a lot of signal are emited, notably if there is an item selected in a diagram.
+		//In some special case, since signal/slot connection can be direct or queued, some signal are handled after QObject is deleted, and crash qet
+		//notably in the function Diagram::elements when she call items() (I don't know exactly why).
+		//set nullptr to "m_selection_properties_editor->setDiagram()" fix this crash
+	m_selection_properties_editor->setDiagram(nullptr);
 	project_view -> deleteLater();
 	project -> deleteLater();
 }
@@ -2136,7 +2172,7 @@ void QETDiagramEditor::removeDiagramFromProject() {
  */
 void QETDiagramEditor::diagramWasAdded(DiagramView *dv)
 {
-	connect(dv, SIGNAL(selectionChanged()), this, SLOT(selectionChanged()));
+	connect(dv->diagram(), &QGraphicsScene::selectionChanged, this, &QETDiagramEditor::selectionChanged, Qt::DirectConnection);
 	connect(dv, SIGNAL(modeChanged()),      this, SLOT(slot_updateModeActions()));
 }
 
@@ -2225,10 +2261,10 @@ void QETDiagramEditor::generateTerminalBlock()
 	
 #ifdef Q_OS_MACOS
 	if (openedProjects().count()){
-		success = process->startDetached("/Library/Frameworks/Python.framework/Versions/3.5/bin/qet_tb_generator", {(QETDiagramEditor::currentProjectView()->project()->filePath())});
+		success = process->startDetached("/Library/Frameworks/Python.framework/Versions/3.8/bin/qet_tb_generator", {(QETDiagramEditor::currentProjectView()->project()->filePath())});
 	}
 	else  {
-		success = process->startDetached("/Library/Frameworks/Python.framework/Versions/3.5/bin/qet_tb_generator");
+		success = process->startDetached("/Library/Frameworks/Python.framework/Versions/3.8/bin/qet_tb_generator");
 	}
 #else
 	if (openedProjects().count()){
